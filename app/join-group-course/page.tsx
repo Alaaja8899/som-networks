@@ -15,6 +15,7 @@ import {
   FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
@@ -396,7 +397,7 @@ export default function JoinGroupCoursePage() {
                       {selectedCourse && selectedCourse.sessions.length > 0 ? (
                         <>
                           <FormLabel>Dooro xilliga aad rabto inaad dhigato(s)</FormLabel>
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             {selectedCourse.sessions.map((session, index) => {
                               const isSelected = currentSessions.some(
                                 (s) =>
@@ -404,20 +405,24 @@ export default function JoinGroupCoursePage() {
                                   s.endTime === session.endTime
                               );
                               return (
-                                <Button
+                                <div
                                   key={index}
-                                  type="button"
-                                  variant={isSelected ? "default" : "outline"}
-                                  className="w-full justify-start"
-                                  onClick={() => toggleSession(session, currentSessions, field.onChange)}
-                                  disabled={submitting}
+                                  className="flex items-center space-x-2"
                                 >
-                                  <Clock className="mr-2 h-4 w-4" />
-                                  {session.startTime} - {session.endTime}
-                                  {isSelected && (
-                                    <Check className="ml-auto h-4 w-4" />
-                                  )}
-                                </Button>
+                                  <Checkbox
+                                    id={`session-${index}`}
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleSession(session, currentSessions, field.onChange)}
+                                    disabled={submitting}
+                                  />
+                                  <label
+                                    htmlFor={`session-${index}`}
+                                    className="flex items-center text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                                  >
+                                    <Clock className="mr-2 h-4 w-4" />
+                                    {session.startTime} - {session.endTime}
+                                  </label>
+                                </div>
                               );
                             })}
                           </div>
