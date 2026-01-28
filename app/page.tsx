@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Users, GraduationCap, Search, X, Download } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import * as XLSX from "xlsx";
 import {
   Dialog,
@@ -96,6 +97,13 @@ export default function Home() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"courses" | "students">("courses");
+  
+  // Selection states for bulk operations
+  const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+  const [isBulkDeleteStudentDialogOpen, setIsBulkDeleteStudentDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Search and filter states
   const [courseSearch, setCourseSearch] = useState("");
@@ -428,6 +436,162 @@ export default function Home() {
   };
 
   /**
+   * Handle course checkbox toggle
+   */
+  const handleCourseCheckboxChange = (courseId: string, checked: boolean) => {
+    setSelectedCourseIds((prev) => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(courseId);
+      } else {
+        newSet.delete(courseId);
+      }
+      return newSet;
+    });
+  };
+
+  /**
+   * Handle select all courses
+   */
+  const handleSelectAllCourses = (checked: boolean) => {
+    if (checked) {
+      setSelectedCourseIds(new Set(filteredCourses.map((course) => course._id)));
+    } else {
+      setSelectedCourseIds(new Set());
+    }
+  };
+
+  /**
+   * Handle student checkbox toggle
+   */
+  const handleStudentCheckboxChange = (studentId: string, checked: boolean) => {
+    setSelectedStudentIds((prev) => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(studentId);
+      } else {
+        newSet.delete(studentId);
+      }
+      return newSet;
+    });
+  };
+
+  /**
+   * Handle select all students
+   */
+  const handleSelectAllStudents = (checked: boolean) => {
+    if (checked) {
+      setSelectedStudentIds(new Set(filteredStudents.map((student) => student._id)));
+    } else {
+      setSelectedStudentIds(new Set());
+    }
+  };
+
+  /**
+   * Bulk delete courses
+   */
+  const handleBulkDeleteCourses = async () => {
+    if (selectedCourseIds.size === 0) return;
+
+    try {
+      setIsDeleting(true);
+      setError(null);
+
+      const deletePromises = Array.from(selectedCourseIds).map(async (id) => {
+        const response = await fetch(`/api/courses/${id}`, { method: "DELETE" });
+        
+        // Check if response is JSON
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await response.text();
+          throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+        }
+
+        return response.json();
+      });
+
+      const results = await Promise.allSettled(deletePromises);
+
+      // Check for failures
+      const failures = results.filter((result) => result.status === "rejected");
+      if (failures.length > 0) {
+        throw new Error(`Failed to delete ${failures.length} course(s)`);
+      }
+
+      // Check response statuses
+      const failedResponses = results.filter(
+        (result) =>
+          result.status === "fulfilled" && result.value && !result.value.success
+      );
+      if (failedResponses.length > 0) {
+        throw new Error(`Failed to delete ${failedResponses.length} course(s)`);
+      }
+
+      // Clear selection and refresh
+      setSelectedCourseIds(new Set());
+      await fetchCourses();
+      setIsBulkDeleteDialogOpen(false);
+    } catch (err: any) {
+      console.error("Error bulk deleting courses:", err);
+      setError(err.message || "Failed to delete courses");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  /**
+   * Bulk delete students
+   */
+  const handleBulkDeleteStudents = async () => {
+    if (selectedStudentIds.size === 0) return;
+
+    try {
+      setIsDeleting(true);
+      setError(null);
+
+      const deletePromises = Array.from(selectedStudentIds).map(async (id) => {
+        const response = await fetch(`/api/students/${id}`, { method: "DELETE" });
+        
+        // Check if response is JSON
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          const text = await response.text();
+          throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+        }
+
+        return response.json();
+      });
+
+      const results = await Promise.allSettled(deletePromises);
+
+      // Check for failures
+      const failures = results.filter((result) => result.status === "rejected");
+      if (failures.length > 0) {
+        throw new Error(`Failed to delete ${failures.length} student(s)`);
+      }
+
+      // Check response statuses
+      const failedResponses = results.filter(
+        (result) =>
+          result.status === "fulfilled" && result.value && !result.value.success
+      );
+      if (failedResponses.length > 0) {
+        throw new Error(`Failed to delete ${failedResponses.length} student(s)`);
+      }
+
+      // Clear selection and refresh
+      setSelectedStudentIds(new Set());
+      await fetchStudents();
+      setIsBulkDeleteStudentDialogOpen(false);
+    } catch (err: any) {
+      console.error("Error bulk deleting students:", err);
+      setError(err.message || "Failed to delete students");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  /**
    * Open edit dialog with selected student
    */
   const handleEditStudentClick = (student: Student) => {
@@ -609,6 +773,12 @@ export default function Home() {
     }
   }, [activeTab, fetchStudents]);
 
+  // Clear selections when switching tabs
+  useEffect(() => {
+    setSelectedCourseIds(new Set());
+    setSelectedStudentIds(new Set());
+  }, [activeTab]);
+
   // Show loading state while checking authentication
   if (isAuthenticated === null) {
     return (
@@ -710,10 +880,43 @@ export default function Home() {
               )}
             </div>
 
+            {/* Bulk Delete Button */}
+            {selectedCourseIds.size > 0 && (
+              <div className="mb-4 flex items-center gap-2">
+                <Button
+                  variant="destructive"
+                  onClick={() => setIsBulkDeleteDialogOpen(true)}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected ({selectedCourseIds.size})
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedCourseIds(new Set())}
+                  disabled={isDeleting}
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            )}
+
             <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={
+                        filteredCourses.length > 0 &&
+                        filteredCourses.every((course) =>
+                          selectedCourseIds.has(course._id)
+                        )
+                      }
+                      onCheckedChange={handleSelectAllCourses}
+                      disabled={loading || filteredCourses.length === 0}
+                    />
+                  </TableHead>
                   <TableHead>Course Name</TableHead>
                   <TableHead>Sessions</TableHead>
                   <TableHead>Created At</TableHead>
@@ -723,19 +926,27 @@ export default function Home() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8">
+                    <TableCell colSpan={5} className="text-center py-8">
                       Loading courses...
                     </TableCell>
                   </TableRow>
                 ) : filteredCourses.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       {courseSearch ? "No courses match your search." : "No courses found. Create your first course to get started."}
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredCourses.map((course) => (
                     <TableRow key={course._id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedCourseIds.has(course._id)}
+                          onCheckedChange={(checked) =>
+                            handleCourseCheckboxChange(course._id, checked as boolean)
+                          }
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">
                         {course.courseName}
                       </TableCell>
@@ -860,10 +1071,43 @@ export default function Home() {
               )}
             </div>
 
+            {/* Bulk Delete Button */}
+            {selectedStudentIds.size > 0 && (
+              <div className="mb-4 flex items-center gap-2">
+                <Button
+                  variant="destructive"
+                  onClick={() => setIsBulkDeleteStudentDialogOpen(true)}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Selected ({selectedStudentIds.size})
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedStudentIds(new Set())}
+                  disabled={isDeleting}
+                >
+                  Clear Selection
+                </Button>
+              </div>
+            )}
+
             <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={
+                        filteredStudents.length > 0 &&
+                        filteredStudents.every((student) =>
+                          selectedStudentIds.has(student._id)
+                        )
+                      }
+                      onCheckedChange={handleSelectAllStudents}
+                      disabled={loadingStudents || filteredStudents.length === 0}
+                    />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>University</TableHead>
@@ -877,13 +1121,13 @@ export default function Home() {
               <TableBody>
                 {loadingStudents ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       Loading students...
                     </TableCell>
                   </TableRow>
                 ) : filteredStudents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       {(studentSearch || filterCourse !== "all" || dateFrom || dateTo)
                         ? "No students match your filters."
                         : "No students registered yet."}
@@ -892,6 +1136,14 @@ export default function Home() {
                 ) : (
                   filteredStudents.map((student) => (
                     <TableRow key={student._id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedStudentIds.has(student._id)}
+                          onCheckedChange={(checked) =>
+                            handleStudentCheckboxChange(student._id, checked as boolean)
+                          }
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">
                         {student.name}
                       </TableCell>
@@ -1033,6 +1285,64 @@ export default function Home() {
               </Button>
               <Button variant="destructive" onClick={handleDeleteStudent}>
                 Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk Delete Courses Confirmation Dialog */}
+        <Dialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Selected Courses</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete {selectedCourseIds.size} course(s)?
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsBulkDeleteDialogOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleBulkDeleteCourses}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk Delete Students Confirmation Dialog */}
+        <Dialog open={isBulkDeleteStudentDialogOpen} onOpenChange={setIsBulkDeleteStudentDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Selected Students</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete {selectedStudentIds.size} student(s)?
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setIsBulkDeleteStudentDialogOpen(false)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleBulkDeleteStudents}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
               </Button>
             </DialogFooter>
           </DialogContent>
