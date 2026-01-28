@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Users, GraduationCap, Search, X, Filter } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, GraduationCap, Search, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
