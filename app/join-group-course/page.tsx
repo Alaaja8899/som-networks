@@ -268,7 +268,7 @@ export default function JoinGroupCoursePage() {
                     <FormLabel>Magaca Schoolka / Jaamacaddada</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Enter your university"
+                        placeholder="Enter your school / university"
                         {...field}
                         disabled={submitting}
                       />
