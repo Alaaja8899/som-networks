@@ -5,7 +5,7 @@ import Course from "@/models/Course";
 /**
  * PUT /api/courses/[id]
  * Updates an existing course by ID
- * Body: { courseName?: string, chatId?: string }
+ * Body: { courseName?: string, sessions?: Array<{ startTime: string, endTime: string }> }
  */
 export async function PUT(
   request: NextRequest,
@@ -15,19 +15,38 @@ export async function PUT(
     await connectDB();
     const { id } = await Promise.resolve(params);
     const body = await request.json();
-    const { courseName, chatId } = body;
+    const { courseName, sessions } = body;
 
     // Validation
-    if (!courseName && !chatId) {
+    if (!courseName && !sessions) {
       return NextResponse.json(
-        { success: false, error: "At least one field (courseName or chatId) is required" },
+        { success: false, error: "At least one field (courseName or sessions) is required" },
         { status: 400 }
       );
     }
 
+    // Validate sessions if provided
+    if (sessions) {
+      if (!Array.isArray(sessions) || sessions.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "At least one session is required" },
+          { status: 400 }
+        );
+      }
+
+      for (const session of sessions) {
+        if (!session.startTime || !session.endTime) {
+          return NextResponse.json(
+            { success: false, error: "Each session must have startTime and endTime" },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     const updateData: any = {};
     if (courseName) updateData.courseName = courseName;
-    if (chatId) updateData.chatId = chatId;
+    if (sessions) updateData.sessions = sessions;
 
     const course = await Course.findByIdAndUpdate(
       id,

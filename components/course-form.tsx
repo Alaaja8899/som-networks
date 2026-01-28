@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -14,19 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -35,24 +23,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2, Users, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Trash2, Clock } from "lucide-react";
+
+/**
+ * Zod schema for session validation
+ */
+const sessionSchema = z.object({
+  startTime: z.string().min(1, "Start time is required"),
+  endTime: z.string().min(1, "End time is required"),
+});
 
 /**
  * Zod schema for course validation
  */
 const courseSchema = z.object({
   courseName: z.string().min(1, "Course name is required"),
-  chatId: z.string().min(1, "Chat ID is required"),
+  sessions: z
+    .array(sessionSchema)
+    .min(1, "At least one session is required"),
 });
 
 type CourseFormValues = z.infer<typeof courseSchema>;
-
-interface WhatsAppGroup {
-  chatId: string;
-  name: string;
-  subject: string;
-  participantsCount: number;
-}
 
 interface CourseFormProps {
   open: boolean;
@@ -64,7 +55,7 @@ interface CourseFormProps {
 }
 
 /**
- * CourseForm component for creating and editing courses
+ * CourseForm component for creating and editing courses with sessions
  * Uses react-hook-form with zod validation
  */
 export function CourseForm({
@@ -75,49 +66,31 @@ export function CourseForm({
   title = "Add Course",
   description = "Create a new course by filling in the details below.",
 }: CourseFormProps) {
-  const [groups, setGroups] = useState<WhatsAppGroup[]>([]);
-  const [loadingGroups, setLoadingGroups] = useState(false);
-  const [groupsError, setGroupsError] = useState<string | null>(null);
-  const [groupPopoverOpen, setGroupPopoverOpen] = useState(false);
-
   const form = useForm<CourseFormValues>({
     resolver: zodResolver(courseSchema),
     defaultValues: defaultValues || {
       courseName: "",
-      chatId: "",
+      sessions: [{ startTime: "", endTime: "" }],
     },
   });
 
-  // Fetch groups when dialog opens
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: "sessions",
+  });
+
+  // Reset form when dialog opens
   useEffect(() => {
     if (open) {
-      fetchGroups();
-      form.reset(defaultValues || { courseName: "", chatId: "" });
+      form.reset(
+        defaultValues || {
+          courseName: "",
+          sessions: [{ startTime: "", endTime: "" }],
+        }
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultValues]);
-
-  /**
-   * Fetch WhatsApp groups from the API
-   */
-  const fetchGroups = async () => {
-    try {
-      setLoadingGroups(true);
-      setGroupsError(null);
-      const response = await fetch("/api/groups");
-      const result = await response.json();
-
-      if (result.success) {
-        setGroups(result.data);
-      } else {
-        setGroupsError(result.error || "Failed to fetch groups");
-      }
-    } catch (err: any) {
-      setGroupsError(err.message || "Failed to fetch groups");
-    } finally {
-      setLoadingGroups(false);
-    }
-  };
 
   const handleSubmit = async (data: CourseFormValues) => {
     try {
@@ -131,7 +104,7 @@ export function CourseForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -151,114 +124,82 @@ export function CourseForm({
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="chatId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>WhatsApp Group</FormLabel>
-                  <Popover open={groupPopoverOpen} onOpenChange={setGroupPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={groupPopoverOpen}
-                          className="w-full justify-between"
-                          disabled={loadingGroups}
-                        >
-                          {field.value ? (
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
-                              <span className="truncate">
-                                {groups.find((g) => g.chatId === field.value)?.name ||
-                                  field.value}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">
-                              Select a WhatsApp group
-                            </span>
-                          )}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0 w-[400px]" align="start">
-                      <Command>
-                        <CommandInput
-                          placeholder="Search groups..."
-                          className="h-9"
-                        />
-                        <CommandList>
-                          {loadingGroups ? (
-                            <div className="flex items-center justify-center py-6">
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              <span className="text-sm text-muted-foreground">
-                                Loading groups...
-                              </span>
-                            </div>
-                          ) : groupsError ? (
-                            <div className="px-4 py-6">
-                              <p className="text-sm text-destructive mb-2">
-                                {groupsError}
-                              </p>
-                              <Button
-                                type="button"
-                                variant="link"
-                                className="h-auto p-0 text-xs"
-                                onClick={fetchGroups}
-                              >
-                                Retry
-                              </Button>
-                            </div>
-                          ) : (
-                            <>
-                              <CommandEmpty>No groups found.</CommandEmpty>
-                              <CommandGroup>
-                                {groups.map((group) => (
-                                  <CommandItem
-                                    key={group.chatId}
-                                    value={`${group.name} ${group.chatId}`}
-                                    onSelect={() => {
-                                      field.onChange(group.chatId);
-                                      setGroupPopoverOpen(false);
-                                    }}
-                                  >
-                                    <div className="flex items-center gap-3 w-full">
-                                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                                        <Users className="h-5 w-5 text-primary" />
-                                      </div>
-                                      <div className="flex flex-col flex-1 min-w-0">
-                                        <span className="font-medium truncate">
-                                          {group.name}
-                                        </span>
-                                        <span className="text-xs text-muted-foreground truncate">
-                                          {group.participantsCount} members
-                                        </span>
-                                      </div>
-                                      <Check
-                                        className={`ml-2 h-4 w-4 shrink-0 ${
-                                          field.value === group.chatId
-                                            ? "opacity-100"
-                                            : "opacity-0"
-                                        }`}
-                                      />
-                                    </div>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Sessions</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => append({ startTime: "", endTime: "" })}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Session
+                </Button>
+              </div>
+
+              {fields.map((field, index) => (
+                <div
+                  key={field.id}
+                  className="flex gap-2 items-start p-3 border rounded-md"
+                >
+                  <div className="flex-1 grid grid-cols-2 gap-2">
+                    <FormField
+                      control={form.control}
+                      name={`sessions.${index}.startTime`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">Start Time</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="8:00"
+                              {...field}
+                              type="text"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name={`sessions.${index}.endTime`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">End Time</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="9:00"
+                              {...field}
+                              type="text"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  {fields.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => remove(index)}
+                      className="mt-6"
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              {form.formState.errors.sessions && (
+                <p className="text-sm text-destructive">
+                  {form.formState.errors.sessions.message}
+                </p>
               )}
-            />
+            </div>
+
             <DialogFooter>
               <Button
                 type="button"

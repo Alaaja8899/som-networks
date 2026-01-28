@@ -11,7 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CourseForm } from "@/components/course-form";
-import { Plus, Pencil, Trash2, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, GraduationCap } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,7 +27,35 @@ import {
 interface Course {
   _id: string;
   courseName: string;
-  chatId: string;
+  sessions: Array<{
+    startTime: string;
+    endTime: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Student interface matching the API response
+ */
+interface Student {
+  _id: string;
+  name: string;
+  email: string;
+  university: string;
+  phoneNumber: string;
+  courseId: {
+    _id: string;
+    courseName: string;
+    sessions: Array<{
+      startTime: string;
+      endTime: string;
+    }>;
+  };
+  selectedSessions: Array<{
+    startTime: string;
+    endTime: string;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,12 +66,15 @@ interface Course {
  */
 export default function Home() {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingStudents, setLoadingStudents] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"courses" | "students">("courses");
 
   /**
    * Fetch all courses from the API
@@ -69,11 +100,33 @@ export default function Home() {
   }, []);
 
   /**
+   * Fetch all students from the API
+   */
+  const fetchStudents = useCallback(async () => {
+    try {
+      setLoadingStudents(true);
+      setError(null);
+      const response = await fetch("/api/students");
+      const result = await response.json();
+
+      if (result.success) {
+        setStudents(result.data);
+      } else {
+        setError(result.error || "Failed to fetch students");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to fetch students");
+    } finally {
+      setLoadingStudents(false);
+    }
+  }, []);
+
+  /**
    * Create a new course
    */
   const handleCreateCourse = async (data: {
     courseName: string;
-    chatId: string;
+    sessions: Array<{ startTime: string; endTime: string }>;
   }) => {
     try {
       const response = await fetch("/api/courses", {
@@ -101,7 +154,7 @@ export default function Home() {
    */
   const handleUpdateCourse = async (data: {
     courseName: string;
-    chatId: string;
+    sessions: Array<{ startTime: string; endTime: string }>;
   }) => {
     if (!selectedCourse) return;
 
@@ -173,14 +226,22 @@ export default function Home() {
     if (!selectedCourse) return undefined;
     return {
       courseName: selectedCourse.courseName,
-      chatId: selectedCourse.chatId,
+      sessions: selectedCourse.sessions,
     };
   }, [selectedCourse]);
 
-  // Fetch courses on component mount
+  // Fetch courses and students on component mount
   useEffect(() => {
     fetchCourses();
-  }, [fetchCourses]);
+    fetchStudents();
+  }, [fetchCourses, fetchStudents]);
+
+  // Refresh students when courses are updated
+  useEffect(() => {
+    if (activeTab === "students") {
+      fetchStudents();
+    }
+  }, [activeTab, fetchStudents]);
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -188,9 +249,9 @@ export default function Home() {
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Course Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
             <p className="text-muted-foreground mt-2">
-              Manage your courses with ease
+              Manage courses and view student registrations
             </p>
           </div>
           <div className="flex gap-2">
@@ -199,13 +260,34 @@ export default function Home() {
               onClick={() => (window.location.href = "/join-group-course")}
             >
               <Users className="mr-2 h-4 w-4" />
-              Join Course
+              Student Registration
             </Button>
-            <Button onClick={() => setIsAddDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Course
-            </Button>
+            {activeTab === "courses" && (
+              <Button onClick={() => setIsAddDialogOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Course
+              </Button>
+            )}
           </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-6 flex gap-2 border-b">
+          <Button
+            variant={activeTab === "courses" ? "default" : "ghost"}
+            onClick={() => setActiveTab("courses")}
+            className="rounded-b-none"
+          >
+            Courses
+          </Button>
+          <Button
+            variant={activeTab === "students" ? "default" : "ghost"}
+            onClick={() => setActiveTab("students")}
+            className="rounded-b-none"
+          >
+            <GraduationCap className="mr-2 h-4 w-4" />
+            Students ({students.length})
+          </Button>
         </div>
 
         {/* Error Message */}
@@ -216,63 +298,141 @@ export default function Home() {
         )}
 
         {/* Courses Table */}
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Course Name</TableHead>
-                <TableHead>Chat ID</TableHead>
-                <TableHead>Created At</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
+        {activeTab === "courses" && (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8">
-                    Loading courses...
-                  </TableCell>
+                  <TableHead>Course Name</TableHead>
+                  <TableHead>Sessions</TableHead>
+                  <TableHead>Created At</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ) : courses.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    No courses found. Create your first course to get started.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                courses.map((course) => (
-                  <TableRow key={course._id}>
-                    <TableCell className="font-medium">
-                      {course.courseName}
-                    </TableCell>
-                    <TableCell>{course.chatId}</TableCell>
-                    <TableCell>
-                      {new Date(course.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEditClick(course)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteClick(course)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8">
+                      Loading courses...
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                ) : courses.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      No courses found. Create your first course to get started.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  courses.map((course) => (
+                    <TableRow key={course._id}>
+                      <TableCell className="font-medium">
+                        {course.courseName}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {course.sessions.map((session, index) => (
+                            <span
+                              key={index}
+                              className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary"
+                            >
+                              {session.startTime} - {session.endTime}
+                            </span>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(course.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditClick(course)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteClick(course)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+
+        {/* Students Table */}
+        {activeTab === "students" && (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>University</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Course</TableHead>
+                  <TableHead>Sessions</TableHead>
+                  <TableHead>Registered</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loadingStudents ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      Loading students...
+                    </TableCell>
+                  </TableRow>
+                ) : students.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      No students registered yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  students.map((student) => (
+                    <TableRow key={student._id}>
+                      <TableCell className="font-medium">
+                        {student.name}
+                      </TableCell>
+                      <TableCell>{student.email}</TableCell>
+                      <TableCell>{student.university}</TableCell>
+                      <TableCell>{student.phoneNumber}</TableCell>
+                      <TableCell>
+                        {typeof student.courseId === "object" && student.courseId
+                          ? student.courseId.courseName
+                          : "N/A"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {student.selectedSessions.map((session, index) => (
+                            <span
+                              key={index}
+                              className="inline-flex items-center rounded-md bg-secondary px-2 py-1 text-xs font-medium"
+                            >
+                              {session.startTime} - {session.endTime}
+                            </span>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(student.createdAt).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
         {/* Add Course Dialog */}
         <CourseForm

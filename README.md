@@ -1,12 +1,14 @@
 # Course Enrollment Dashboard
 
-A Next.js dashboard application for managing courses with WhatsApp group integration. Built with Next.js, MongoDB, Mongoose, and ShadCN UI.
+A Next.js dashboard application for managing courses with session scheduling and student registration. Built with Next.js, MongoDB, Mongoose, and ShadCN UI.
 
 ## Features
 
 - ✅ Full CRUD operations for courses
+- ✅ Course session management (multiple time slots per course)
+- ✅ Student registration with course and session selection
+- ✅ Admin dashboard to view all registered students
 - ✅ MongoDB integration with Mongoose
-- ✅ WhatsApp group selector with dropdown
 - ✅ Form validation with Zod and React Hook Form
 - ✅ Beautiful UI with ShadCN components
 - ✅ Responsive design
@@ -17,7 +19,6 @@ A Next.js dashboard application for managing courses with WhatsApp group integra
 
 - Node.js 18+ installed
 - MongoDB database (local or Atlas)
-- WhatsApp API access (optional, for group selection)
 
 ### Environment Variables
 
@@ -26,11 +27,6 @@ Create a `.env` file in the root directory with the following variables:
 ```env
 # MongoDB Connection URI
 MONGODB_URI=your_mongodb_connection_string_here
-
-# WhatsApp API Configuration (Optional)
-# If not provided, defaults will be used from the guide
-WHATSAPP_API_ENDPOINT=http://178.18.245.131:3000/api/default/groups
-WHATSAPP_API_KEY=your_whatsapp_api_key_here
 ```
 
 ### Installation
@@ -58,23 +54,43 @@ bun dev
 
 ## Usage
 
+### Admin Dashboard
+
+The admin dashboard allows you to:
+- Create courses with multiple sessions (e.g., 8:00-9:00, 10:00-11:00)
+- Edit existing courses
+- Delete courses
+- View all registered students with their details
+
 ### Creating a Course
 
-1. Click the "Add Course" button
-2. Enter a course name
-3. Select a WhatsApp group from the dropdown (or enter the chat ID manually)
-4. Click "Save"
+1. Navigate to the admin dashboard
+2. Click the "Add Course" button
+3. Enter a course name
+4. Add one or more sessions by clicking "Add Session"
+5. Enter start time and end time for each session (e.g., "8:00" and "9:00")
+6. Click "Save"
 
-### Editing a Course
+### Student Registration
 
-1. Click the pencil icon next to the course you want to edit
-2. Modify the course name or WhatsApp group
-3. Click "Save"
+1. Navigate to the student registration page
+2. Fill in your details:
+   - Name
+   - Email
+   - University
+   - Phone number
+   - Select a course
+   - Select one or more sessions
+3. Click "Register for Course"
 
-### Deleting a Course
+### Viewing Registered Students
 
-1. Click the trash icon next to the course you want to delete
-2. Confirm the deletion in the dialog
+1. In the admin dashboard, click the "Students" tab
+2. View all registered students with their:
+   - Name, Email, University, Phone number
+   - Selected course
+   - Selected sessions
+   - Registration date
 
 ## Project Structure
 
@@ -83,8 +99,9 @@ course-enrollment/
 ├── app/
 │   ├── api/
 │   │   ├── courses/        # Course CRUD API routes
-│   │   └── groups/         # WhatsApp groups API proxy
-│   ├── page.tsx           # Main dashboard page
+│   │   └── students/       # Student registration API routes
+│   ├── join-group-course/  # Student registration page
+│   ├── page.tsx           # Main admin dashboard page
 │   └── layout.tsx         # Root layout
 ├── components/
 │   ├── ui/                 # ShadCN UI components
@@ -92,7 +109,8 @@ course-enrollment/
 ├── lib/
 │   └── mongodb.ts         # MongoDB connection utility
 └── models/
-    └── Course.ts          # Mongoose Course model
+    ├── Course.ts          # Mongoose Course model
+    └── Student.ts         # Mongoose Student model
 ```
 
 ## Technologies Used

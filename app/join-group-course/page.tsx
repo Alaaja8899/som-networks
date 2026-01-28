@@ -28,7 +28,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Loader2, Users, Check, ChevronsUpDown, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Users, Check, ChevronsUpDown, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import {
   Alert,
   AlertDescription,
@@ -39,12 +39,17 @@ import {
  * Zod schema for join form validation
  */
 const joinFormSchema = z.object({
-  studentName: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Please enter a valid email address"),
+  university: z.string().min(1, "University is required"),
+  phoneNumber: z.string().min(1, "Phone number is required"),
   courseId: z.string().min(1, "Please select a course"),
-  whatsappNumber: z
-    .string()
-    .min(1, "WhatsApp number is required")
-    .regex(/^\d+$/, "WhatsApp number must contain only digits"),
+  selectedSessions: z
+    .array(z.object({
+      startTime: z.string(),
+      endTime: z.string(),
+    }))
+    .min(1, "Please select at least one session"),
 });
 
 type JoinFormValues = z.infer<typeof joinFormSchema>;
@@ -52,30 +57,39 @@ type JoinFormValues = z.infer<typeof joinFormSchema>;
 interface Course {
   _id: string;
   courseName: string;
-  chatId: string;
+  sessions: Array<{
+    startTime: string;
+    endTime: string;
+  }>;
 }
 
 /**
- * Join Group Course Page
- * Allows students to join a WhatsApp group for a course
+ * Student Registration Page
+ * Allows students to register for a course and select sessions
  */
 export default function JoinGroupCoursePage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [coursePopoverOpen, setCoursePopoverOpen] = useState(false);
+  const [selectedSessions, setSelectedSessions] = useState<Array<{ startTime: string; endTime: string }>>([]);
 
   const form = useForm<JoinFormValues>({
     resolver: zodResolver(joinFormSchema),
     defaultValues: {
-      studentName: "",
+      name: "",
+      email: "",
+      university: "",
+      phoneNumber: "",
       courseId: "",
-      whatsappNumber: "",
+      selectedSessions: [],
     },
   });
+
+  const selectedCourseId = form.watch("courseId");
+  const selectedCourse = courses.find((c) => c._id === selectedCourseId);
 
   /**
    * Fetch all courses from the API
@@ -103,6 +117,35 @@ export default function JoinGroupCoursePage() {
     fetchCourses();
   }, []);
 
+  // Reset selected sessions when course changes
+  useEffect(() => {
+    if (selectedCourseId) {
+      setSelectedSessions([]);
+      form.setValue("selectedSessions", []);
+    }
+  }, [selectedCourseId, form]);
+
+  /**
+   * Toggle session selection
+   */
+  const toggleSession = (session: { startTime: string; endTime: string }, currentValue: Array<{ startTime: string; endTime: string }>, onChange: (value: Array<{ startTime: string; endTime: string }>) => void) => {
+    const isSelected = currentValue.some(
+      (s) => s.startTime === session.startTime && s.endTime === session.endTime
+    );
+
+    let newSessions: Array<{ startTime: string; endTime: string }>;
+    if (isSelected) {
+      newSessions = currentValue.filter(
+        (s) => !(s.startTime === session.startTime && s.endTime === session.endTime)
+      );
+    } else {
+      newSessions = [...currentValue, session];
+    }
+
+    setSelectedSessions(newSessions);
+    onChange(newSessions);
+  };
+
   /**
    * Handle form submission
    */
@@ -112,85 +155,54 @@ export default function JoinGroupCoursePage() {
       setError(null);
       setSuccess(false);
 
-      // Find the selected course to get its chatId
-      const selectedCourse = courses.find((c) => c._id === data.courseId);
-      if (!selectedCourse) {
-        throw new Error("Selected course not found");
-      }
+      // Register student
+      const response = await fetch("/api/students", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
 
-      // Format WhatsApp number with 252 prefix and @c.us suffix
-      // The form field only contains the number without prefix, so we add 252
-      let participantId = `252${data.whatsappNumber}`;
-      if (!participantId.includes("@")) {
-        participantId = `${participantId}@c.us`;
-      }
+      const result = await response.json();
 
-      // Add participant to the group (API handles everything internally)
-      const addResponse = await fetch(
-        `/api/groups/${encodeURIComponent(selectedCourse.chatId)}/participants/add`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            participants: [{ id: participantId }],
-            studentName: data.studentName,
-            courseName: selectedCourse.courseName,
-          }),
-        }
-      );
-
-      const addResult = await addResponse.json();
-
-      if (addResult.success) {
-        // Determine success message based on method used
-        if (addResult.method === "direct_add") {
-          setSuccessMessage("You have been successfully added to the WhatsApp group. Check your WhatsApp for the group invitation.");
-        } else if (addResult.method === "invite_link") {
-          setSuccessMessage("You couldn't be automatically added to the group, but we've sent you an invite link via WhatsApp. Please check your messages and click the link to join.");
-        }
-        
+      if (result.success) {
         setSuccess(true);
         form.reset();
+        setSelectedSessions([]);
         setTimeout(() => {
           setSuccess(false);
-          setSuccessMessage(null);
         }, 8000);
       } else {
-        throw new Error(addResult.error || "Failed to join the group. Please try again.");
+        throw new Error(result.error || "Failed to register. Please try again.");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to join the group. Please try again.");
+      setError(err.message || "Failed to register. Please try again.");
     } finally {
       setSubmitting(false);
     }
   };
-
-  const selectedCourse = courses.find(
-    (c) => c._id === form.watch("courseId")
-  );
 
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="mx-auto max-w-2xl">
         {/* Header */}
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">Kusoo biir groupka koorsada</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Course Registration</h1>
           <p className="text-muted-foreground mt-2">
-            si aad ugu soo biirto groupka koorsada fadlan buuxi formka hoose
+            Register for a course by filling in the details below
           </p>
         </div>
 
         {/* Success Alert */}
-        {success && successMessage && (
+        {success && (
           <Alert className="mb-6 border-green-500 bg-green-50 dark:bg-green-950">
             <CheckCircle2 className="h-4 w-4 text-green-600" />
             <AlertTitle className="text-green-800 dark:text-green-200">
               Success!
             </AlertTitle>
             <AlertDescription className="text-green-700 dark:text-green-300">
-              {successMessage}
+              You have been successfully registered for the course. We will contact you soon.
             </AlertDescription>
           </Alert>
         )}
@@ -208,16 +220,74 @@ export default function JoinGroupCoursePage() {
         <div className="rounded-lg border bg-card p-6 shadow-sm">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {/* Student Name */}
+              {/* Name */}
               <FormField
                 control={form.control}
-                name="studentName"
+                name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Magacaga</FormLabel>
+                    <FormLabel>Name</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Enter your firstname"
+                        placeholder="Enter your full name"
+                        {...field}
+                        disabled={submitting}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Email */}
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="Enter your email"
+                        {...field}
+                        disabled={submitting}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* University */}
+              <FormField
+                control={form.control}
+                name="university"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>University</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter your university"
+                        {...field}
+                        disabled={submitting}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Phone Number */}
+              <FormField
+                control={form.control}
+                name="phoneNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Phone Number</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Enter your phone number"
                         {...field}
                         disabled={submitting}
                       />
@@ -233,7 +303,7 @@ export default function JoinGroupCoursePage() {
                 name="courseId"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Dooro koorsada</FormLabel>
+                    <FormLabel>Select Course</FormLabel>
                     <Popover
                       open={coursePopoverOpen}
                       onOpenChange={setCoursePopoverOpen}
@@ -305,45 +375,62 @@ export default function JoinGroupCoursePage() {
                         </Command>
                       </PopoverContent>
                     </Popover>
-                    <FormDescription>
-                       
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {/* WhatsApp Number */}
+              {/* Session Selection */}
               <FormField
                 control={form.control}
-                name="whatsappNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>WhatsApp Number</FormLabel>
-                    <FormControl>
-                      <div className="flex items-center group">
-                        <span className="inline-flex items-center justify-center h-10 px-3 rounded-l-md border border-r-0 border-input bg-background text-foreground text-sm font-medium group-focus-within:border-ring group-focus-within:ring-2 group-focus-within:ring-ring group-focus-within:ring-offset-2">
-                          252
-                        </span>
-                        <Input
-                          placeholder="611430930"
-                          {...field}
-                          disabled={submitting}
-                          className="rounded-l-none rounded-r-md"
-                          onChange={(e) => {
-                            // Only allow digits
-                            const value = e.target.value.replace(/\D/g, "");
-                            field.onChange(value);
-                          }}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormDescription>
-                      Fadlan geli numberka aad whatsappka ku isticmaasho
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                name="selectedSessions"
+                render={({ field }) => {
+                  const currentSessions = field.value || [];
+                  
+                  // Sync local state with form field value
+                  if (JSON.stringify(currentSessions) !== JSON.stringify(selectedSessions)) {
+                    setSelectedSessions(currentSessions);
+                  }
+
+                  return (
+                    <FormItem>
+                      {selectedCourse && selectedCourse.sessions.length > 0 ? (
+                        <>
+                          <FormLabel>Select Session(s)</FormLabel>
+                          <div className="space-y-2">
+                            {selectedCourse.sessions.map((session, index) => {
+                              const isSelected = currentSessions.some(
+                                (s) =>
+                                  s.startTime === session.startTime &&
+                                  s.endTime === session.endTime
+                              );
+                              return (
+                                <Button
+                                  key={index}
+                                  type="button"
+                                  variant={isSelected ? "default" : "outline"}
+                                  className="w-full justify-start"
+                                  onClick={() => toggleSession(session, currentSessions, field.onChange)}
+                                  disabled={submitting}
+                                >
+                                  <Clock className="mr-2 h-4 w-4" />
+                                  {session.startTime} - {session.endTime}
+                                  {isSelected && (
+                                    <Check className="ml-auto h-4 w-4" />
+                                  )}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                          <FormDescription>
+                            Select one or more sessions for this course
+                          </FormDescription>
+                        </>
+                      ) : null}
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               {/* Submit Button */}
@@ -356,19 +443,18 @@ export default function JoinGroupCoursePage() {
                 {submitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    kugu soo daraya ...
+                    Registering...
                   </>
                 ) : (
                   <>
                     <Users className="mr-2 h-4 w-4" />
-                    Kusoo biir groupka
+                    Register for Course
                   </>
                 )}
               </Button>
             </form>
           </Form>
         </div>
-
       </div>
     </div>
   );
