@@ -225,7 +225,7 @@ export default function JoinGroupCoursePage() {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>Magacaga</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Enter your full name"
@@ -264,7 +264,7 @@ export default function JoinGroupCoursePage() {
                 name="university"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>University</FormLabel>
+                    <FormLabel>Magaca jaamacaddada</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Enter your university"
@@ -302,7 +302,7 @@ export default function JoinGroupCoursePage() {
                 name="courseId"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Select Course</FormLabel>
+                    <FormLabel>Dooro Course</FormLabel>
                     <Popover
                       open={coursePopoverOpen}
                       onOpenChange={setCoursePopoverOpen}
@@ -395,7 +395,7 @@ export default function JoinGroupCoursePage() {
                     <FormItem>
                       {selectedCourse && selectedCourse.sessions.length > 0 ? (
                         <>
-                          <FormLabel>Select Session(s)</FormLabel>
+                          <FormLabel>Dooro xilliga aad rabto inaad dhigato(s)</FormLabel>
                           <div className="space-y-2">
                             {selectedCourse.sessions.map((session, index) => {
                               const isSelected = currentSessions.some(
@@ -422,7 +422,7 @@ export default function JoinGroupCoursePage() {
                             })}
                           </div>
                           <FormDescription>
-                            Select one or more sessions for this course
+                            Xilliyada xiisada ladhigayo
                           </FormDescription>
                         </>
                       ) : null}
@@ -447,7 +447,7 @@ export default function JoinGroupCoursePage() {
                 ) : (
                   <>
                     <Users className="mr-2 h-4 w-4" />
-                    Register for Course
+                    Is diiwaan geli
                   </>
                 )}
               </Button>
