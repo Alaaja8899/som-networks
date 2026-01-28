@@ -21,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Users, GraduationCap, Search, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, GraduationCap, Search, X, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
   Dialog,
   DialogContent,
@@ -546,6 +547,53 @@ export default function Home() {
     setDateTo("");
   };
 
+  /**
+   * Export students data to Excel
+   */
+  const exportStudentsToExcel = () => {
+    // Use filtered students if filters are applied, otherwise use all students
+    const hasFilters = studentSearch || filterCourse !== "all" || dateFrom || dateTo;
+    const dataToExport = hasFilters ? filteredStudents : students;
+
+    if (dataToExport.length === 0) {
+      alert("No students data to export");
+      return;
+    }
+
+    // Prepare data for Excel
+    const excelData = dataToExport.map((student) => {
+      const courseName = typeof student.courseId === "object" && student.courseId
+        ? student.courseId.courseName
+        : "N/A";
+      
+      const sessions = student.selectedSessions
+        .map((s) => `${s.startTime} - ${s.endTime}`)
+        .join(", ");
+
+      return {
+        Name: student.name,
+        Email: student.email,
+        University: student.university,
+        "Phone Number": student.phoneNumber,
+        Course: courseName,
+        Sessions: sessions,
+        "Registered Date": new Date(student.createdAt).toLocaleDateString(),
+      };
+    });
+
+    // Create workbook and worksheet
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
+
+    // Generate filename with current date
+    const dateStr = new Date().toISOString().split("T")[0];
+    const filename = `students_${dateStr}.xlsx`;
+
+    // Write file and trigger download
+    XLSX.writeFile(workbook, filename);
+  };
+
   // Fetch courses and students on component mount (only if authenticated)
   useEffect(() => {
     if (isAuthenticated) {
@@ -749,6 +797,14 @@ export default function Home() {
                     className="pl-9"
                   />
                 </div>
+                <Button
+                  variant="default"
+                  onClick={exportStudentsToExcel}
+                  disabled={loadingStudents || (filteredStudents.length === 0 && students.length === 0)}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Excel
+                </Button>
                 {(studentSearch || filterCourse !== "all" || dateFrom || dateTo) && (
                   <Button
                     variant="outline"

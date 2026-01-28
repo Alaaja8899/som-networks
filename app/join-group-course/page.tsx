@@ -265,7 +265,7 @@ export default function JoinGroupCoursePage() {
                 name="university"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Magaca jaamacaddada</FormLabel>
+                    <FormLabel>Magaca Schoolka / Jaamacaddada</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Enter your university"
