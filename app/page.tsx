@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -11,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CourseForm } from "@/components/course-form";
+import { StudentForm } from "@/components/student-form";
 import { Plus, Pencil, Trash2, Users, GraduationCap } from "lucide-react";
 import {
   Dialog,
@@ -60,11 +62,18 @@ interface Student {
   updatedAt: string;
 }
 
+// Authentication credentials
+const ADMIN_USERNAME = "admin";
+const ADMIN_PASSWORD = "sonak$$00$";
+const AUTH_STORAGE_KEY = "admin_authenticated";
+
 /**
  * Main dashboard page component
  * Displays courses in a table and provides CRUD operations
  */
 export default function Home() {
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,9 +81,72 @@ export default function Home() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEditStudentDialogOpen, setIsEditStudentDialogOpen] = useState(false);
+  const [isDeleteStudentDialogOpen, setIsDeleteStudentDialogOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"courses" | "students">("courses");
+
+  /**
+   * Check authentication status
+   */
+  const checkAuth = useCallback(() => {
+    if (typeof window !== "undefined") {
+      const authStatus = localStorage.getItem(AUTH_STORAGE_KEY);
+      return authStatus === "true";
+    }
+    return false;
+  }, []);
+
+  /**
+   * Prompt for authentication using browser prompt
+   */
+  const promptAuth = useCallback(() => {
+    const enteredUsername = prompt("Enter username:");
+    if (enteredUsername === null) {
+      router.push("/join-group-course");
+      return;
+    }
+
+    const enteredPassword = prompt("Enter password:");
+    if (enteredPassword === null) {
+      router.push("/join-group-course");
+      return;
+    }
+
+    if (enteredUsername === ADMIN_USERNAME && enteredPassword === ADMIN_PASSWORD) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem(AUTH_STORAGE_KEY, "true");
+      }
+      setIsAuthenticated(true);
+    } else {
+      alert("Invalid username or password. Access denied.");
+      router.push("/join-group-course");
+    }
+  }, [router]);
+
+  /**
+   * Handle logout
+   */
+  const handleLogout = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+    setIsAuthenticated(false);
+    router.push("/join-group-course");
+  };
+
+  // Check authentication on mount
+  useEffect(() => {
+    const authStatus = checkAuth();
+    if (authStatus) {
+      setIsAuthenticated(true);
+    } else {
+      // Use prompt for authentication
+      promptAuth();
+    }
+  }, [checkAuth, promptAuth]);
 
   /**
    * Fetch all courses from the API
@@ -221,6 +293,82 @@ export default function Home() {
     setIsDeleteDialogOpen(true);
   };
 
+  /**
+   * Update an existing student
+   */
+  const handleUpdateStudent = async (data: {
+    name: string;
+    email: string;
+    university: string;
+    phoneNumber: string;
+    courseId: string;
+    selectedSessions: Array<{ startTime: string; endTime: string }>;
+  }) => {
+    if (!selectedStudent) return;
+
+    try {
+      const response = await fetch(`/api/students/${selectedStudent._id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        await fetchStudents();
+        setSelectedStudent(null);
+      } else {
+        throw new Error(result.error || "Failed to update student");
+      }
+    } catch (err: any) {
+      throw new Error(err.message || "Failed to update student");
+    }
+  };
+
+  /**
+   * Delete a student
+   */
+  const handleDeleteStudent = async () => {
+    if (!selectedStudent) return;
+
+    try {
+      const response = await fetch(`/api/students/${selectedStudent._id}`, {
+        method: "DELETE",
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        await fetchStudents();
+        setSelectedStudent(null);
+        setIsDeleteStudentDialogOpen(false);
+      } else {
+        throw new Error(result.error || "Failed to delete student");
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to delete student");
+    }
+  };
+
+  /**
+   * Open edit dialog with selected student
+   */
+  const handleEditStudentClick = (student: Student) => {
+    setSelectedStudent(student);
+    setIsEditStudentDialogOpen(true);
+  };
+
+  /**
+   * Open delete confirmation dialog for student
+   */
+  const handleDeleteStudentClick = (student: Student) => {
+    setSelectedStudent(student);
+    setIsDeleteStudentDialogOpen(true);
+  };
+
   // Memoize default values for edit form to prevent unnecessary re-renders
   const editFormDefaultValues = useMemo(() => {
     if (!selectedCourse) return undefined;
@@ -230,11 +378,30 @@ export default function Home() {
     };
   }, [selectedCourse]);
 
-  // Fetch courses and students on component mount
+  // Memoize default values for student edit form
+  const editStudentFormDefaultValues = useMemo(() => {
+    if (!selectedStudent) return undefined;
+    const courseId = typeof selectedStudent.courseId === "object" && selectedStudent.courseId
+      ? selectedStudent.courseId._id
+      : selectedStudent.courseId as string;
+    
+    return {
+      name: selectedStudent.name,
+      email: selectedStudent.email,
+      university: selectedStudent.university,
+      phoneNumber: selectedStudent.phoneNumber,
+      courseId: courseId,
+      selectedSessions: selectedStudent.selectedSessions,
+    };
+  }, [selectedStudent]);
+
+  // Fetch courses and students on component mount (only if authenticated)
   useEffect(() => {
-    fetchCourses();
-    fetchStudents();
-  }, [fetchCourses, fetchStudents]);
+    if (isAuthenticated) {
+      fetchCourses();
+      fetchStudents();
+    }
+  }, [isAuthenticated, fetchCourses, fetchStudents]);
 
   // Refresh students when courses are updated
   useEffect(() => {
@@ -242,6 +409,22 @@ export default function Home() {
       fetchStudents();
     }
   }, [activeTab, fetchStudents]);
+
+  // Show loading state while checking authentication
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show nothing if not authenticated (prompt will handle redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background p-8">
@@ -261,6 +444,12 @@ export default function Home() {
             >
               <Users className="mr-2 h-4 w-4" />
               Student Registration
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleLogout}
+            >
+              Logout
             </Button>
             {activeTab === "courses" && (
               <Button onClick={() => setIsAddDialogOpen(true)}>
@@ -382,18 +571,19 @@ export default function Home() {
                   <TableHead>Course</TableHead>
                   <TableHead>Sessions</TableHead>
                   <TableHead>Registered</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loadingStudents ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={8} className="text-center py-8">
                       Loading students...
                     </TableCell>
                   </TableRow>
                 ) : students.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No students registered yet.
                     </TableCell>
                   </TableRow>
@@ -425,6 +615,24 @@ export default function Home() {
                       </TableCell>
                       <TableCell>
                         {new Date(student.createdAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEditStudentClick(student)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteStudentClick(student)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -479,6 +687,48 @@ export default function Home() {
                 Cancel
               </Button>
               <Button variant="destructive" onClick={handleDeleteCourse}>
+                Delete
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Student Dialog */}
+        {selectedStudent && (
+          <StudentForm
+            open={isEditStudentDialogOpen}
+            onOpenChange={(open) => {
+              setIsEditStudentDialogOpen(open);
+              if (!open) setSelectedStudent(null);
+            }}
+            onSubmit={handleUpdateStudent}
+            defaultValues={editStudentFormDefaultValues}
+            title="Edit Student"
+            description="Update the student details below."
+          />
+        )}
+
+        {/* Delete Student Confirmation Dialog */}
+        <Dialog open={isDeleteStudentDialogOpen} onOpenChange={setIsDeleteStudentDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Student</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete "{selectedStudent?.name}"?
+                This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDeleteStudentDialogOpen(false);
+                  setSelectedStudent(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteStudent}>
                 Delete
               </Button>
             </DialogFooter>
