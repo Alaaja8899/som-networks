@@ -282,19 +282,43 @@ export default function JoinGroupCoursePage() {
               <FormField
                 control={form.control}
                 name="phoneNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Enter your phone number"
-                        {...field}
-                        disabled={submitting}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const PREFIX = "252";
+                  
+                  // Extract the number without prefix for display
+                  const displayValue = field.value?.startsWith(PREFIX)
+                    ? field.value.slice(PREFIX.length)
+                    : field.value || "";
+                  
+                  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+                    const inputValue = e.target.value.replace(/\D/g, ""); // Remove non-digits
+                    // Always prepend the prefix
+                    const fullValue = inputValue ? `${PREFIX}${inputValue}` : "";
+                    field.onChange(fullValue);
+                  };
+
+                  return (
+                    <FormItem>
+                      <FormLabel>Phone Number</FormLabel>
+                      <FormControl>
+                        <div className="flex items-center">
+                          <span className="inline-flex items-center h-10 px-3 rounded-l-md border border-r-0 border-input bg-muted text-muted-foreground text-sm">
+                            {PREFIX}
+                          </span>
+                          <Input
+                            type="tel"
+                            placeholder="Enter your phone number"
+                            value={displayValue}
+                            onChange={handleChange}
+                            disabled={submitting}
+                            className="rounded-l-none"
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               {/* Course Selection */}
