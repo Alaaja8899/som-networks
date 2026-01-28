@@ -13,7 +13,15 @@ import {
 } from "@/components/ui/table";
 import { CourseForm } from "@/components/course-form";
 import { StudentForm } from "@/components/student-form";
-import { Plus, Pencil, Trash2, Users, GraduationCap } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, Pencil, Trash2, Users, GraduationCap, Search, X, Filter } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -87,6 +95,13 @@ export default function Home() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"courses" | "students">("courses");
+  
+  // Search and filter states
+  const [courseSearch, setCourseSearch] = useState("");
+  const [studentSearch, setStudentSearch] = useState("");
+  const [filterCourse, setFilterCourse] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
 
   /**
    * Check authentication status
@@ -157,6 +172,14 @@ export default function Home() {
       setLoading(true);
       setError(null);
       const response = await fetch("/api/courses");
+      
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
@@ -165,6 +188,7 @@ export default function Home() {
         setError(result.error || "Failed to fetch courses");
       }
     } catch (err: any) {
+      console.error("Error fetching courses:", err);
       setError(err.message || "Failed to fetch courses");
     } finally {
       setLoading(false);
@@ -179,6 +203,14 @@ export default function Home() {
       setLoadingStudents(true);
       setError(null);
       const response = await fetch("/api/students");
+      
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
@@ -187,6 +219,7 @@ export default function Home() {
         setError(result.error || "Failed to fetch students");
       }
     } catch (err: any) {
+      console.error("Error fetching students:", err);
       setError(err.message || "Failed to fetch students");
     } finally {
       setLoadingStudents(false);
@@ -209,6 +242,13 @@ export default function Home() {
         body: JSON.stringify(data),
       });
 
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
@@ -217,6 +257,7 @@ export default function Home() {
         throw new Error(result.error || "Failed to create course");
       }
     } catch (err: any) {
+      console.error("Error creating course:", err);
       throw new Error(err.message || "Failed to create course");
     }
   };
@@ -239,6 +280,13 @@ export default function Home() {
         body: JSON.stringify(data),
       });
 
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
@@ -248,6 +296,7 @@ export default function Home() {
         throw new Error(result.error || "Failed to update course");
       }
     } catch (err: any) {
+      console.error("Error updating course:", err);
       throw new Error(err.message || "Failed to update course");
     }
   };
@@ -263,6 +312,13 @@ export default function Home() {
         method: "DELETE",
       });
 
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
@@ -273,6 +329,7 @@ export default function Home() {
         throw new Error(result.error || "Failed to delete course");
       }
     } catch (err: any) {
+      console.error("Error deleting course:", err);
       setError(err.message || "Failed to delete course");
     }
   };
@@ -315,6 +372,13 @@ export default function Home() {
         body: JSON.stringify(data),
       });
 
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
@@ -324,6 +388,7 @@ export default function Home() {
         throw new Error(result.error || "Failed to update student");
       }
     } catch (err: any) {
+      console.error("Error updating student:", err);
       throw new Error(err.message || "Failed to update student");
     }
   };
@@ -339,6 +404,13 @@ export default function Home() {
         method: "DELETE",
       });
 
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
@@ -349,6 +421,7 @@ export default function Home() {
         throw new Error(result.error || "Failed to delete student");
       }
     } catch (err: any) {
+      console.error("Error deleting student:", err);
       setError(err.message || "Failed to delete student");
     }
   };
@@ -394,6 +467,84 @@ export default function Home() {
       selectedSessions: selectedStudent.selectedSessions,
     };
   }, [selectedStudent]);
+
+
+  // Filtered courses
+  const filteredCourses = useMemo(() => {
+    if (!courseSearch) return courses;
+    
+    const searchLower = courseSearch.toLowerCase();
+    return courses.filter((course) =>
+      course.courseName.toLowerCase().includes(searchLower) ||
+      course.sessions.some((session) =>
+        `${session.startTime}-${session.endTime}`.toLowerCase().includes(searchLower)
+      )
+    );
+  }, [courses, courseSearch]);
+
+  // Filtered students
+  const filteredStudents = useMemo(() => {
+    let filtered = students;
+
+    // Search filter
+    if (studentSearch) {
+      const searchLower = studentSearch.toLowerCase();
+      filtered = filtered.filter((student) =>
+        student.name.toLowerCase().includes(searchLower) ||
+        student.email.toLowerCase().includes(searchLower) ||
+        student.university.toLowerCase().includes(searchLower) ||
+        student.phoneNumber.toLowerCase().includes(searchLower) ||
+        (typeof student.courseId === "object" && student.courseId &&
+          student.courseId.courseName.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Course filter
+    if (filterCourse !== "all") {
+      filtered = filtered.filter((student) => {
+        const courseId = typeof student.courseId === "object" && student.courseId
+          ? student.courseId._id
+          : student.courseId as string;
+        return courseId === filterCourse;
+      });
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      filtered = filtered.filter((student) => {
+        const studentDate = new Date(student.createdAt);
+        studentDate.setHours(0, 0, 0, 0);
+        
+        if (dateFrom && dateTo) {
+          const fromDate = new Date(dateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          const toDate = new Date(dateTo);
+          toDate.setHours(23, 59, 59, 999);
+          return studentDate >= fromDate && studentDate <= toDate;
+        } else if (dateFrom) {
+          const fromDate = new Date(dateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          return studentDate >= fromDate;
+        } else if (dateTo) {
+          const toDate = new Date(dateTo);
+          toDate.setHours(23, 59, 59, 999);
+          return studentDate <= toDate;
+        }
+        return true;
+      });
+    }
+
+    return filtered;
+  }, [students, studentSearch, filterCourse, dateFrom, dateTo]);
+
+  // Clear all filters
+  const clearFilters = () => {
+    setCourseSearch("");
+    setStudentSearch("");
+    setFilterCourse("all");
+    setDateFrom("");
+    setDateTo("");
+  };
 
   // Fetch courses and students on component mount (only if authenticated)
   useEffect(() => {
@@ -488,7 +639,30 @@ export default function Home() {
 
         {/* Courses Table */}
         {activeTab === "courses" && (
-          <div className="rounded-md border">
+          <>
+            {/* Search Bar for Courses */}
+            <div className="mb-4 flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search courses by name or session time..."
+                  value={courseSearch}
+                  onChange={(e) => setCourseSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {courseSearch && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setCourseSearch("")}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -505,14 +679,14 @@ export default function Home() {
                       Loading courses...
                     </TableCell>
                   </TableRow>
-                ) : courses.length === 0 ? (
+                ) : filteredCourses.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                      No courses found. Create your first course to get started.
+                      {courseSearch ? "No courses match your search." : "No courses found. Create your first course to get started."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  courses.map((course) => (
+                  filteredCourses.map((course) => (
                     <TableRow key={course._id}>
                       <TableCell className="font-medium">
                         {course.courseName}
@@ -556,11 +730,81 @@ export default function Home() {
               </TableBody>
             </Table>
           </div>
+          </>
         )}
 
         {/* Students Table */}
         {activeTab === "students" && (
-          <div className="rounded-md border">
+          <>
+            {/* Search and Filters for Students */}
+            <div className="mb-4 space-y-3">
+              {/* Search Bar */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name, email, university, phone, or course..."
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                {(studentSearch || filterCourse !== "all" || dateFrom || dateTo) && (
+                  <Button
+                    variant="outline"
+                    onClick={clearFilters}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+
+              {/* Filter Row */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                {/* Course Filter */}
+                <Select value={filterCourse} onValueChange={setFilterCourse}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by Course" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Courses</SelectItem>
+                    {courses.map((course) => (
+                      <SelectItem key={course._id} value={course._id}>
+                        {course.courseName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Date From */}
+                <Input
+                  type="date"
+                  placeholder="From Date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full"
+                />
+
+                {/* Date To */}
+                <Input
+                  type="date"
+                  placeholder="To Date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Results Count */}
+              {(studentSearch || filterCourse !== "all" || dateFrom || dateTo) && (
+                <div className="text-sm text-muted-foreground">
+                  Showing {filteredStudents.length} of {students.length} students
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -581,14 +825,16 @@ export default function Home() {
                       Loading students...
                     </TableCell>
                   </TableRow>
-                ) : students.length === 0 ? (
+                ) : filteredStudents.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      No students registered yet.
+                      {(studentSearch || filterCourse !== "all" || dateFrom || dateTo)
+                        ? "No students match your filters."
+                        : "No students registered yet."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  students.map((student) => (
+                  filteredStudents.map((student) => (
                     <TableRow key={student._id}>
                       <TableCell className="font-medium">
                         {student.name}
@@ -640,6 +886,7 @@ export default function Home() {
               </TableBody>
             </Table>
           </div>
+          </>
         )}
 
         {/* Add Course Dialog */}

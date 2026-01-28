@@ -28,12 +28,8 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Loader2, Users, Check, ChevronsUpDown, CheckCircle2, AlertCircle, Clock } from "lucide-react";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
+import { Loader2, Users, Check, ChevronsUpDown, Clock } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 /**
  * Zod schema for join form validation
@@ -68,11 +64,10 @@ interface Course {
  * Allows students to register for a course and select sessions
  */
 export default function JoinGroupCoursePage() {
+  const { toast } = useToast();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [coursePopoverOpen, setCoursePopoverOpen] = useState(false);
   const [selectedSessions, setSelectedSessions] = useState<Array<{ startTime: string; endTime: string }>>([]);
 
@@ -98,15 +93,31 @@ export default function JoinGroupCoursePage() {
     try {
       setLoadingCourses(true);
       const response = await fetch("/api/courses");
+      
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
         setCourses(result.data);
       } else {
-        setError("Failed to load courses. Please refresh the page.");
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to load courses. Please refresh the page.",
+        });
       }
     } catch (err: any) {
-      setError("Failed to load courses. Please refresh the page.");
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load courses. Please refresh the page.",
+      });
     } finally {
       setLoadingCourses(false);
     }
@@ -152,8 +163,6 @@ export default function JoinGroupCoursePage() {
   const onSubmit = async (data: JoinFormValues) => {
     try {
       setSubmitting(true);
-      setError(null);
-      setSuccess(false);
 
       // Register student
       const response = await fetch("/api/students", {
@@ -164,20 +173,32 @@ export default function JoinGroupCoursePage() {
         body: JSON.stringify(data),
       });
 
+      // Check if response is JSON
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
-        setSuccess(true);
+        toast({
+          variant: "success",
+          title: "Registration Successful!",
+          description: "You have been successfully registered for the course. We will contact you soon.",
+        });
         form.reset();
         setSelectedSessions([]);
-        setTimeout(() => {
-          setSuccess(false);
-        }, 8000);
       } else {
         throw new Error(result.error || "Failed to register. Please try again.");
       }
     } catch (err: any) {
-      setError(err.message || "Failed to register. Please try again.");
+      toast({
+        variant: "destructive",
+        title: "Registration Failed",
+        description: err.message || "Failed to register. Please try again.",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -193,28 +214,6 @@ export default function JoinGroupCoursePage() {
             Register for a course by filling in the details below
           </p>
         </div>
-
-        {/* Success Alert */}
-        {success && (
-          <Alert className="mb-6 border-green-500 bg-green-50 dark:bg-green-950">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertTitle className="text-green-800 dark:text-green-200">
-              Success!
-            </AlertTitle>
-            <AlertDescription className="text-green-700 dark:text-green-300">
-              You have been successfully registered for the course. We will contact you soon.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Error Alert */}
-        {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
 
         {/* Form */}
         <div className="rounded-lg border bg-card p-6 shadow-sm">
